@@ -4,7 +4,7 @@
   "description": "Express TypeScript Backend API for Equipment Rental Platform",
   "main": "dist/server.js",
   "private": true,
-    "scripts": {
+  "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",

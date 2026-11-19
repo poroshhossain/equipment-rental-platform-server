@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import userRouter from "./modules/users/user.route.js";
 
 
 const app = express();
@@ -16,6 +17,10 @@ app.get("/", (_req, res) => {
     message: "Welcome to Express TypeScript API",
   });
 });
+
+// user routes endpoint
+app.use('/api/v1/users', userRouter)
+
 
 
 
