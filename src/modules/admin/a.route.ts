@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   changeUserRole,
   deleteUser,
+  getAdminAnalytics,
   getAdminEquipment,
   getAdminRentals,
   getUsers,
@@ -11,6 +12,7 @@ import {
 
 const adminRouter = Router();
 
+adminRouter.get("/analytics", getAdminAnalytics);
 adminRouter.get("/users", getUsers);
 adminRouter.patch("/users/:id/role", changeUserRole);
 adminRouter.delete("/users/:id", deleteUser);

@@ -9,6 +9,8 @@ const equipment = db.collection("equipments");
 const rentals = db.collection("rentals");
 const sessions = db.collection("session");
 const accounts = db.collection("account");
+const bookings = db.collection("bookings");
+const payments = db.collection("payments");
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -179,6 +181,56 @@ export const getAdminRentals = async (_req: Request, res: Response) => {
     });
   } catch (error) {
     failed(res, "Error fetching rentals", error);
+  }
+};
+
+export const getAdminAnalytics = async (_req: Request, res: Response) => {
+  try {
+    const [userCount, equipmentCount, bookingDocs, paymentDocs] =
+      await Promise.all([
+        users.countDocuments({}),
+        equipment.countDocuments({}),
+        bookings.find({}).toArray(),
+        payments.find({}).toArray(),
+      ]);
+
+    const monthly = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date();
+      date.setMonth(date.getMonth() - 5 + index, 1);
+      return {
+        key: `${date.getFullYear()}-${date.getMonth()}`,
+        month: date.toLocaleString("en-US", { month: "short" }),
+        count: 0,
+      };
+    });
+
+    bookingDocs.forEach((booking) => {
+      const date = new Date(text(booking.createdAt));
+      const bucket = monthly.find(
+        (item) => item.key === `${date.getFullYear()}-${date.getMonth()}`,
+      );
+      if (bucket) bucket.count += 1;
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Admin analytics fetched successfully",
+      data: {
+        totalUsers: userCount,
+        totalEquipment: equipmentCount,
+        totalBookings: bookingDocs.length,
+        pendingApprovals: await equipment.countDocuments({ status: "pending" }),
+        completedRentals: bookingDocs.filter(
+          (booking) => text(booking.bookingStatus) === "completed",
+        ).length,
+        totalRevenue: paymentDocs
+          .filter((payment) => text(payment.status) === "paid")
+          .reduce((sum, payment) => sum + Number(payment.amount), 0),
+        monthlyBookings: monthly.map(({ month, count }) => ({ month, count })),
+      },
+    });
+  } catch (error) {
+    failed(res, "Error fetching admin analytics", error);
   }
 };
 

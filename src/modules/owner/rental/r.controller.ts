@@ -4,13 +4,24 @@ import { toClient } from "../../../config/serialize.js";
 
 const db = await connectToMongoDB();
 const rentalCollection = db.collection("rentals");
+const equipmentCollection = db.collection("equipments");
 
-export const getAllRentals = async (_req: Request, res: Response) => {
+export const getAllRentals = async (req: Request, res: Response) => {
   try {
-    const rentals = await rentalCollection
-      .find({})
-      .sort({ createdAt: -1 })
-      .toArray();
+    const ownerEmail =
+      typeof req.query.ownerEmail === "string" ? req.query.ownerEmail : "";
+
+    let rentals = await rentalCollection.find({}).sort({ createdAt: -1 }).toArray();
+
+    if (ownerEmail) {
+      const owned = await equipmentCollection
+        .find({ "owner.email": ownerEmail })
+        .toArray();
+      const ids = new Set(owned.map((item) => String(item._id)));
+      rentals = rentals.filter((rental) =>
+        ids.has(String(rental.equipmentId)),
+      );
+    }
 
     res.status(200).json({
       success: true,

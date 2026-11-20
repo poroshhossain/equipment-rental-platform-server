@@ -62,6 +62,7 @@ export const getAllEquipment = async (req: Request, res: Response) => {
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
         { location: { $regex: search, $options: "i" } },
       ];
     }
@@ -78,6 +79,15 @@ export const getAllEquipment = async (req: Request, res: Response) => {
     if (sort === "price-desc") cursor = cursor.sort({ rentalPrice: -1 });
     if (sort === "recent") cursor = cursor.sort({ createdAt: -1 });
     if (sort === "popular") cursor = cursor.sort({ popularity: -1, createdAt: -1 });
+
+    const requestedPage = Number(queryValue(req.query.page));
+    if (
+      limit &&
+      Number.isFinite(requestedPage) &&
+      requestedPage > 1
+    ) {
+      cursor = cursor.skip((requestedPage - 1) * limit);
+    }
     if (limit) cursor = cursor.limit(limit);
 
     const equipments = await cursor.toArray();
