@@ -7,8 +7,6 @@ Express + MongoDB API for the EquipRent equipment rental platform.
 ```bash
 npm install
 cp .env.example .env     # fill in DB_URL
-npm run seed             # seed categories and reviews (once)
-npm run seed:demo        # optional dummy users, equipment, bookings, rentals, payments, favorites
 npm run dev              # http://localhost:5000
 ```
 
@@ -17,7 +15,7 @@ npm run dev              # http://localhost:5000
 ## Environment
 
 All secrets come from `.env` (see `.env.example`): MongoDB URL, allowed CORS
-origins, Stripe keys, ImgBB key and optional Resend key. Never commit real values.
+origins, client URL and Stripe keys. Never commit real values.
 
 ## Routes
 
@@ -29,7 +27,6 @@ origins, Stripe keys, ImgBB key and optional Resend key. Never commit real value
 | `/api/v1/admin/*` | User, equipment and rental management |
 | `/api/v1/profile` | Shared account profile |
 | `/api/v1/payments` | Stripe checkout, webhook and payment lookup |
-| `/api/v1/uploads` | ImgBB image upload |
 | `/api/v1/categories`, `/api/v1/reviews` | Public home content |
 
 Authentication and route protection are handled in the Next.js app with

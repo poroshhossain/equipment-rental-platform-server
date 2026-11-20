@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import userRouter from "./modules/users/user.route.js";
 import userProfileRouter from "./modules/users/profile.route.js";
 import equipmentRouter from "./modules/owner/equipment/e.route.js";
 import rentalRouter from "./modules/owner/rental/r.route.js";
@@ -12,7 +11,6 @@ import favoriteRouter from "./modules/customer/favorite/f.route.js";
 import bookingRouter from "./modules/customer/booking/b.route.js";
 import adminRouter from "./modules/admin/a.route.js";
 import paymentRouter from "./modules/payment/p.route.js";
-import uploadRouter from "./modules/upload/u.route.js";
 
 const app = express();
 
@@ -35,21 +33,12 @@ app.use(
   }),
 );
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.get("/health", (_req, res) => {
   res.status(200).json({ success: true, status: "ok" });
 });
 
-app.get("/", (_req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Welcome to Express TypeScript API",
-  });
-});
-
-app.use("/api/v1/users", userRouter);
 app.use("/api/v1/profile", userProfileRouter);
 app.use("/api/v1/equipments", equipmentRouter);
 app.use("/api/v1/owner/rentals", rentalRouter);
@@ -61,7 +50,6 @@ app.use("/api/v1/customer/favorites", favoriteRouter);
 app.use("/api/v1/customer/bookings", bookingRouter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/payments", paymentRouter);
-app.use("/api/v1/uploads", uploadRouter);
 
 // Export Express app for Vercel
 export default app;
