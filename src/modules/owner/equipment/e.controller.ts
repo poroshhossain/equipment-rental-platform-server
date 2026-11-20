@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
-import { ObjectId } from "mongodb";
 import { connectToMongoDB } from "../../../config/db.js";
-import { toClient } from "../../../config/serialize.js";
+import { idFilter, toClient } from "../../../config/serialize.js";
 
 const db = await connectToMongoDB();
 const equipmentCollection = db.collection("equipments");
@@ -13,8 +12,8 @@ const fail = (res: Response, message: string, error: unknown) =>
     error: error instanceof Error ? error.message : "Unknown error",
   });
 
-const idFilter = (id: string) =>
-  ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id };
+const queryValue = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
 
 export const postEquipment = async (req: Request, res: Response) => {
   try {
@@ -38,14 +37,48 @@ export const postEquipment = async (req: Request, res: Response) => {
   }
 };
 
-export const getAllEquipment = async (_req: Request, res: Response) => {
+export const getAllEquipment = async (req: Request, res: Response) => {
   try {
-    const equipments = await equipmentCollection.find({}).toArray();
+    const status = queryValue(req.query.status);
+    const sort = queryValue(req.query.sort);
+    const requestedLimit = Number(queryValue(req.query.limit));
+    const limit =
+      Number.isFinite(requestedLimit) && requestedLimit > 0
+        ? Math.min(requestedLimit, 50)
+        : 0;
+
+    let cursor = equipmentCollection.find(status ? { status } : {});
+    if (sort === "popular") cursor = cursor.sort({ popularity: -1, createdAt: -1 });
+    if (sort === "recent") cursor = cursor.sort({ createdAt: -1 });
+    if (limit) cursor = cursor.limit(limit);
+
+    const equipments = await cursor.toArray();
 
     res.status(200).json({
       success: true,
       message: "All equipment retrieved successfully",
       data: equipments.map(toClient),
+    });
+  } catch (error) {
+    fail(res, "Error occurred while retrieving equipment", error);
+  }
+};
+
+export const getEquipmentById = async (req: Request, res: Response) => {
+  try {
+    const equipment = await equipmentCollection.findOne(
+      idFilter(String(req.params.id ?? "")),
+    );
+
+    if (!equipment) {
+      res.status(404).json({ success: false, message: "Equipment not found" });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Equipment retrieved successfully",
+      data: toClient(equipment),
     });
   } catch (error) {
     fail(res, "Error occurred while retrieving equipment", error);

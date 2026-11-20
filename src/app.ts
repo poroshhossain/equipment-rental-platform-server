@@ -5,6 +5,9 @@ import equipmentRouter from "./modules/owner/equipment/e.route.js";
 import rentalRouter from "./modules/owner/rental/r.route.js";
 import profileRouter from "./modules/owner/profile/p.route.js";
 import revenueRouter from "./modules/owner/revenue/v.route.js";
+import contentRouter from "./modules/content/c.route.js";
+import favoriteRouter from "./modules/customer/favorite/f.route.js";
+import bookingRouter from "./modules/customer/booking/b.route.js";
 
 const app = express();
 
@@ -26,6 +29,9 @@ app.use("/api/v1/equipments", equipmentRouter);
 app.use("/api/v1/owner/rentals", rentalRouter);
 app.use("/api/v1/owner/profile", profileRouter);
 app.use("/api/v1/owner/revenue", revenueRouter);
+app.use("/api/v1", contentRouter);
+app.use("/api/v1/customer/favorites", favoriteRouter);
+app.use("/api/v1/customer/bookings", bookingRouter);
 
 // Export Express app for Vercel
 export default app;
