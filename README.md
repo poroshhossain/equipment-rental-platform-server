@@ -8,6 +8,7 @@ Express + MongoDB API for the EquipRent equipment rental platform.
 npm install
 cp .env.example .env     # fill in DB_URL and JWT_SECRET
 npm run seed             # seed categories and reviews (once)
+npm run seed:demo        # optional dummy users, equipment, bookings, rentals, payments, favorites
 npm run dev              # http://localhost:5000
 ```
 
