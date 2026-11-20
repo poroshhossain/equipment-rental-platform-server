@@ -17,18 +17,24 @@ const app = express();
 // Stripe needs the untouched body to verify its signature.
 app.use("/api/v1/payments/webhook", express.raw({ type: "application/json" }));
 
-// Middlewares — origins come from env so production never depends on localhost.
-const allowedOrigins = (
-  process.env.CORS_ORIGINS ??
-  "http://localhost:3000,http://127.0.0.1:3000"
-)
-  .split(",")
-  .map((origin) => origin.trim());
+// Local development should work on any host/port without CORS errors.
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  ...(process.env.CORS_ORIGINS ?? "").split(",").map((origin) => origin.trim()),
+].filter(Boolean);
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
-      else callback(new Error("Origin not allowed"));
+      if (
+        !origin ||
+        process.env.NODE_ENV !== "production" ||
+        allowedOrigins.includes(origin)
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error("Origin not allowed"));
+      }
     },
   }),
 );
