@@ -36,6 +36,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
+app.get("/health", (_req, res) => {
+  res.status(200).json({ success: true, status: "ok" });
+});
+
 app.get("/", (_req, res) => {
   res.status(200).json({
     success: true,
