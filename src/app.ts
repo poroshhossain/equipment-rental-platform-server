@@ -10,9 +10,13 @@ import contentRouter from "./modules/content/c.route.js";
 import favoriteRouter from "./modules/customer/favorite/f.route.js";
 import bookingRouter from "./modules/customer/booking/b.route.js";
 import adminRouter from "./modules/admin/a.route.js";
+import paymentRouter from "./modules/payment/p.route.js";
 import { verifyAdmin } from "./middleware/auth.js";
 
 const app = express();
+
+// Stripe needs the untouched body to verify its signature.
+app.use("/api/v1/payments/webhook", express.raw({ type: "application/json" }));
 
 // Middlewares — origins come from env so production never depends on localhost.
 const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:3000")
@@ -47,6 +51,7 @@ app.use("/api/v1", contentRouter);
 app.use("/api/v1/customer/favorites", favoriteRouter);
 app.use("/api/v1/customer/bookings", bookingRouter);
 app.use("/api/v1/admin", verifyAdmin, adminRouter);
+app.use("/api/v1/payments", paymentRouter);
 
 // Export Express app for Vercel
 export default app;
