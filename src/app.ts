@@ -9,6 +9,7 @@ import revenueRouter from "./modules/owner/revenue/v.route.js";
 import contentRouter from "./modules/content/c.route.js";
 import favoriteRouter from "./modules/customer/favorite/f.route.js";
 import bookingRouter from "./modules/customer/booking/b.route.js";
+import adminRouter from "./modules/admin/a.route.js";
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.use("/api/v1/owner/revenue", revenueRouter);
 app.use("/api/v1", contentRouter);
 app.use("/api/v1/customer/favorites", favoriteRouter);
 app.use("/api/v1/customer/bookings", bookingRouter);
+app.use("/api/v1/admin", adminRouter);
 
 // Export Express app for Vercel
 export default app;

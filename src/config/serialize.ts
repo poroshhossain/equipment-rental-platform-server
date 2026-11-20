@@ -1,4 +1,4 @@
-import { ObjectId, type Document, type WithId } from "mongodb";
+import { ObjectId, type Document, type Filter, type WithId } from "mongodb";
 
 /** MongoDB uses _id; the front-end uses id. */
 export function toClient(doc: WithId<Document> | null) {
@@ -8,6 +8,11 @@ export function toClient(doc: WithId<Document> | null) {
   return { ...rest, id: String(_id) };
 }
 
-/** New records use ObjectId; older seeded records keep a string id. */
-export const idFilter = (id: string) =>
-  ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { id };
+/** Handles ObjectId values, string _id values and legacy string id fields. */
+export const idFilter = (id: string) => {
+  const byId = ObjectId.isValid(id)
+    ? [{ _id: new ObjectId(id) }, { _id: id }, { id }]
+    : [{ _id: id }, { id }];
+
+  return { $or: byId } as Filter<Document>;
+};

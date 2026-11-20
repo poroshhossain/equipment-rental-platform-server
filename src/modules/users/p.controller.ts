@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { ObjectId } from "mongodb";
+import type { Document, Filter } from "mongodb";
 import { connectToMongoDB } from "../../config/db.js";
 
 const db = await connectToMongoDB();
@@ -16,10 +16,9 @@ const failed = (res: Response, message: string, error: unknown) =>
     error: error instanceof Error ? error.message : "Unknown error",
   });
 
+// better-auth stores ids as strings in the _id field.
 const userFilter = (userId: string) =>
-  ObjectId.isValid(userId)
-    ? { $or: [{ id: userId }, { _id: new ObjectId(userId) }] }
-    : { id: userId };
+  ({ $or: [{ _id: userId }, { id: userId }] }) as Filter<Document>;
 
 const toProfile = (doc: Record<string, unknown> | null, userId: string) =>
   doc

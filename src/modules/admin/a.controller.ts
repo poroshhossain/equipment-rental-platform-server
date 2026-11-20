@@ -1,0 +1,229 @@
+import type { Request, Response } from "express";
+import type { Document, Filter } from "mongodb";
+import { connectToMongoDB } from "../../config/db.js";
+import { idFilter, toClient } from "../../config/serialize.js";
+
+const db = await connectToMongoDB();
+const users = db.collection("user");
+const equipment = db.collection("equipments");
+const rentals = db.collection("rentals");
+const sessions = db.collection("session");
+const accounts = db.collection("account");
+
+const text = (value: unknown): string =>
+  typeof value === "string" ? value : "";
+
+const ROLES = ["customer", "owner", "admin"];
+const PAYMENT_STATUSES = ["paid", "pending", "failed", "refunded"];
+const BOOKING_STATUSES = [
+  "pending",
+  "confirmed",
+  "active",
+  "completed",
+  "cancelled",
+];
+
+const failed = (res: Response, message: string, error: unknown) =>
+  res.status(500).json({
+    success: false,
+    message,
+    error: error instanceof Error ? error.message : "Unknown error",
+  });
+
+// better-auth stores ids as strings in the _id field.
+const userFilter = (id: string) =>
+  ({ $or: [{ _id: id }, { id }] }) as Filter<Document>;
+
+const publicUser = (doc: Record<string, unknown>) => ({
+  id: text(doc._id) || text(doc.id),
+  name: text(doc.name),
+  email: text(doc.email),
+  role: ROLES.includes(text(doc.role)) ? text(doc.role) : "customer",
+  createdAt: text(doc.createdAt),
+});
+
+export const getUsers = async (_req: Request, res: Response) => {
+  try {
+    const docs = await users.find({}).sort({ createdAt: -1 }).toArray();
+    res.status(200).json({
+      success: true,
+      message: "Users fetched successfully",
+      data: docs.map(publicUser),
+    });
+  } catch (error) {
+    failed(res, "Error fetching users", error);
+  }
+};
+
+export const changeUserRole = async (req: Request, res: Response) => {
+  try {
+    const role = text(req.body.role);
+    if (!ROLES.includes(role)) {
+      res.status(400).json({ success: false, message: "Invalid role" });
+      return;
+    }
+
+    const id = text(req.params.id);
+    const user = await users.findOneAndUpdate(
+      userFilter(id),
+      { $set: { role, updatedAt: new Date().toISOString() } },
+      { returnDocument: "after" },
+    );
+
+    if (!user) {
+      res.status(404).json({ success: false, message: "User not found" });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Role updated successfully",
+      data: publicUser(user),
+    });
+  } catch (error) {
+    failed(res, "Error updating role", error);
+  }
+};
+
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    const id = text(req.params.id);
+    const result = await users.deleteOne(userFilter(id));
+
+    if (result.deletedCount === 0) {
+      res.status(404).json({ success: false, message: "User not found" });
+      return;
+    }
+
+    // Remove the user's auth records too.
+    await sessions.deleteMany({ userId: id });
+    await accounts.deleteMany({ userId: id });
+
+    res.status(200).json({
+      success: true,
+      message: "User deleted successfully",
+      data: { id },
+    });
+  } catch (error) {
+    failed(res, "Error deleting user", error);
+  }
+};
+
+export const getAdminEquipment = async (_req: Request, res: Response) => {
+  try {
+    const items = await equipment.find({}).sort({ createdAt: -1 }).toArray();
+    res.status(200).json({
+      success: true,
+      message: "Equipment fetched successfully",
+      data: items.map(toClient),
+    });
+  } catch (error) {
+    failed(res, "Error fetching equipment", error);
+  }
+};
+
+export const setEquipmentStatus = async (req: Request, res: Response) => {
+  try {
+    const status = text(req.body.status);
+    if (!["pending", "approved", "rejected", "paused"].includes(status)) {
+      res.status(400).json({ success: false, message: "Invalid status" });
+      return;
+    }
+
+    const item = await equipment.findOneAndUpdate(
+      idFilter(text(req.params.id)),
+      { $set: { status } },
+      { returnDocument: "after" },
+    );
+
+    if (!item) {
+      res.status(404).json({ success: false, message: "Equipment not found" });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Equipment status updated",
+      data: toClient(item),
+    });
+  } catch (error) {
+    failed(res, "Error updating equipment status", error);
+  }
+};
+
+export const getAdminRentals = async (_req: Request, res: Response) => {
+  try {
+    const docs = await rentals.find({}).sort({ createdAt: -1 }).toArray();
+    const items = await equipment.find({}).toArray();
+
+    // Owners are stored on the equipment record.
+    const owners = new Map<string, Record<string, unknown>>();
+    items.forEach((item) => {
+      owners.set(text(item._id), (item.owner ?? {}) as Record<string, unknown>);
+      if (item.id) owners.set(text(item.id), item.owner as Record<string, unknown>);
+    });
+
+    const data = docs.map((doc) => {
+      const owner = owners.get(text(doc.equipmentId)) ?? {};
+      return {
+        ...toClient(doc),
+        ownerName: text(owner.name) || "Unknown owner",
+        ownerEmail: text(owner.email),
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Rentals fetched successfully",
+      data,
+    });
+  } catch (error) {
+    failed(res, "Error fetching rentals", error);
+  }
+};
+
+export const updateRentalStatus = async (req: Request, res: Response) => {
+  try {
+    const set: Record<string, string> = {};
+    const paymentStatus = text(req.body.paymentStatus);
+    const bookingStatus = text(req.body.bookingStatus);
+
+    if (paymentStatus) {
+      if (!PAYMENT_STATUSES.includes(paymentStatus)) {
+        res.status(400).json({ success: false, message: "Invalid payment status" });
+        return;
+      }
+      set.paymentStatus = paymentStatus;
+    }
+    if (bookingStatus) {
+      if (!BOOKING_STATUSES.includes(bookingStatus)) {
+        res.status(400).json({ success: false, message: "Invalid booking status" });
+        return;
+      }
+      set.bookingStatus = bookingStatus;
+    }
+    if (Object.keys(set).length === 0) {
+      res.status(400).json({ success: false, message: "No status provided" });
+      return;
+    }
+
+    const rental = await rentals.findOneAndUpdate(
+      idFilter(text(req.params.id)),
+      { $set: set },
+      { returnDocument: "after" },
+    );
+
+    if (!rental) {
+      res.status(404).json({ success: false, message: "Rental not found" });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Rental status updated",
+      data: toClient(rental),
+    });
+  } catch (error) {
+    failed(res, "Error updating rental", error);
+  }
+};
