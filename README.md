@@ -6,7 +6,7 @@ Express + MongoDB API for the EquipRent equipment rental platform.
 
 ```bash
 npm install
-cp .env.example .env     # fill in DB_URL and JWT_SECRET
+cp .env.example .env     # fill in DB_URL
 npm run seed             # seed categories and reviews (once)
 npm run seed:demo        # optional dummy users, equipment, bookings, rentals, payments, favorites
 npm run dev              # http://localhost:5000
@@ -16,26 +16,25 @@ npm run dev              # http://localhost:5000
 
 ## Environment
 
-All secrets come from `.env` (see `.env.example`): MongoDB URL, shared JWT secret,
-allowed CORS origins, Stripe keys, ImgBB key and optional Resend key. Never commit
-real credentials. `JWT_SECRET` must match the client-side value.
+All secrets come from `.env` (see `.env.example`): MongoDB URL, allowed CORS
+origins, Stripe keys, ImgBB key and optional Resend key. Never commit real values.
 
 ## Routes
 
 | Prefix | Purpose |
 | ------ | ------- |
-| `/api/v1/equipments` | Public reads; owner-only writes (JWT + `verifyOwner`) |
+| `/api/v1/equipments` | Equipment reads and writes |
 | `/api/v1/owner/*` | Owner rentals, profile, revenue, scoped data and analytics |
-| `/api/v1/customer/*` | Customer favorites and bookings (`verifyRenter`) |
-| `/api/v1/admin/*` | User, equipment and rental management (`verifyAdmin`) |
-| `/api/v1/profile` | Shared account profile (any signed-in user) |
+| `/api/v1/customer/*` | Customer favorites and bookings |
+| `/api/v1/admin/*` | User, equipment and rental management |
+| `/api/v1/profile` | Shared account profile |
 | `/api/v1/payments` | Stripe checkout, webhook and payment lookup |
 | `/api/v1/uploads` | ImgBB image upload |
 | `/api/v1/categories`, `/api/v1/reviews` | Public home content |
 
-Authentication uses `verifyToken`, `verifyRenter`, `verifyOwner` and `verifyAdmin`
-in `src/middleware/auth.ts`. The Next.js app signs short-lived HS256 tokens from
-better-auth sessions; the API verifies them with the same `JWT_SECRET`.
+Authentication and route protection are handled in the Next.js app with
+better-auth sessions and client-side role guards. API authorization middleware is
+intentionally not included in this project version.
 
 ## Production notes
 

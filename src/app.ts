@@ -13,7 +13,6 @@ import bookingRouter from "./modules/customer/booking/b.route.js";
 import adminRouter from "./modules/admin/a.route.js";
 import paymentRouter from "./modules/payment/p.route.js";
 import uploadRouter from "./modules/upload/u.route.js";
-import { verifyAdmin } from "./middleware/auth.js";
 
 const app = express();
 
@@ -60,7 +59,7 @@ app.use("/api/v1/owner", scopeRouter);
 app.use("/api/v1", contentRouter);
 app.use("/api/v1/customer/favorites", favoriteRouter);
 app.use("/api/v1/customer/bookings", bookingRouter);
-app.use("/api/v1/admin", verifyAdmin, adminRouter);
+app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/uploads", uploadRouter);
 
