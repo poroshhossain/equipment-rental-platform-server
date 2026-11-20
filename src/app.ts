@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import userRouter from "./modules/users/user.route.js";
+import userProfileRouter from "./modules/users/profile.route.js";
 import equipmentRouter from "./modules/owner/equipment/e.route.js";
 import rentalRouter from "./modules/owner/rental/r.route.js";
 import profileRouter from "./modules/owner/profile/p.route.js";
@@ -25,6 +26,7 @@ app.get("/", (_req, res) => {
 });
 
 app.use("/api/v1/users", userRouter);
+app.use("/api/v1/profile", userProfileRouter);
 app.use("/api/v1/equipments", equipmentRouter);
 app.use("/api/v1/owner/rentals", rentalRouter);
 app.use("/api/v1/owner/profile", profileRouter);

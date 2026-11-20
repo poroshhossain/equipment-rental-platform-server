@@ -97,7 +97,7 @@ export const createBooking = async (req: Request, res: Response) => {
       contactNumber: text(contactNumber),
       deliveryAddress: text(deliveryAddress),
       notes: text(notes),
-      status: "pending",
+      bookingStatus: "pending",
       paymentStatus: "pending",
       createdAt: now,
     };
