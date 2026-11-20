@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import type { Document, Filter } from "mongodb";
 import { connectToMongoDB } from "../../config/db.js";
 import { idFilter, toClient } from "../../config/serialize.js";
 
@@ -14,6 +13,10 @@ const payments = db.collection("payments");
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
+
+// MongoDB returns ObjectId and Date objects, not strings.
+const asText = (value: unknown): string =>
+  value instanceof Date ? value.toISOString() : String(value ?? "");
 
 const ROLES = ["customer", "owner", "admin"];
 const PAYMENT_STATUSES = ["paid", "pending", "failed", "refunded"];
@@ -32,16 +35,12 @@ const failed = (res: Response, message: string, error: unknown) =>
     error: error instanceof Error ? error.message : "Unknown error",
   });
 
-// better-auth stores ids as strings in the _id field.
-const userFilter = (id: string) =>
-  ({ $or: [{ _id: id }, { id }] }) as Filter<Document>;
-
 const publicUser = (doc: Record<string, unknown>) => ({
-  id: text(doc._id) || text(doc.id),
-  name: text(doc.name),
-  email: text(doc.email),
+  id: asText(doc._id) || asText(doc.id),
+  name: asText(doc.name),
+  email: asText(doc.email),
   role: ROLES.includes(text(doc.role)) ? text(doc.role) : "customer",
-  createdAt: text(doc.createdAt),
+  createdAt: asText(doc.createdAt),
 });
 
 export const getUsers = async (_req: Request, res: Response) => {
@@ -67,7 +66,7 @@ export const changeUserRole = async (req: Request, res: Response) => {
 
     const id = text(req.params.id);
     const user = await users.findOneAndUpdate(
-      userFilter(id),
+      idFilter(id),
       { $set: { role, updatedAt: new Date().toISOString() } },
       { returnDocument: "after" },
     );
@@ -90,7 +89,7 @@ export const changeUserRole = async (req: Request, res: Response) => {
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const id = text(req.params.id);
-    const result = await users.deleteOne(userFilter(id));
+    const result = await users.deleteOne(idFilter(id));
 
     if (result.deletedCount === 0) {
       res.status(404).json({ success: false, message: "User not found" });
@@ -161,8 +160,8 @@ export const getAdminRentals = async (_req: Request, res: Response) => {
     // Owners are stored on the equipment record.
     const owners = new Map<string, Record<string, unknown>>();
     items.forEach((item) => {
-      owners.set(text(item._id), (item.owner ?? {}) as Record<string, unknown>);
-      if (item.id) owners.set(text(item.id), item.owner as Record<string, unknown>);
+      owners.set(asText(item._id), (item.owner ?? {}) as Record<string, unknown>);
+      if (item.id) owners.set(asText(item.id), item.owner as Record<string, unknown>);
     });
 
     const data = docs.map((doc) => {

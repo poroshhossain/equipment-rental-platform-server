@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
-import type { Document, Filter } from "mongodb";
 import { connectToMongoDB } from "../../config/db.js";
+import { idFilter } from "../../config/serialize.js";
 
 const db = await connectToMongoDB();
 const profiles = db.collection("userProfiles");
@@ -15,10 +15,6 @@ const failed = (res: Response, message: string, error: unknown) =>
     message,
     error: error instanceof Error ? error.message : "Unknown error",
   });
-
-// better-auth stores ids as strings in the _id field.
-const userFilter = (userId: string) =>
-  ({ $or: [{ _id: userId }, { id: userId }] }) as Filter<Document>;
 
 const toProfile = (doc: Record<string, unknown> | null, userId: string) =>
   doc
@@ -42,7 +38,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
     }
 
     const saved = await profiles.findOne({ userId });
-    const user = saved ? null : await users.findOne(userFilter(userId));
+    const user = saved ? null : await users.findOne(idFilter(userId));
 
     res.status(200).json({
       success: true,
@@ -64,7 +60,7 @@ export const saveUserProfile = async (req: Request, res: Response) => {
       return;
     }
 
-    await users.updateOne(userFilter(text(userId)), {
+    await users.updateOne(idFilter(text(userId)), {
       $set: { name: text(name), email: text(email), image: text(image) },
     });
 

@@ -21,7 +21,10 @@ const app = express();
 app.use("/api/v1/payments/webhook", express.raw({ type: "application/json" }));
 
 // Middlewares — origins come from env so production never depends on localhost.
-const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:3000")
+const allowedOrigins = (
+  process.env.CORS_ORIGINS ??
+  "http://localhost:3000,http://127.0.0.1:3000"
+)
   .split(",")
   .map((origin) => origin.trim());
 app.use(
