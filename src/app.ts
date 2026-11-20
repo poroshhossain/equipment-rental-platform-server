@@ -10,11 +10,22 @@ import contentRouter from "./modules/content/c.route.js";
 import favoriteRouter from "./modules/customer/favorite/f.route.js";
 import bookingRouter from "./modules/customer/booking/b.route.js";
 import adminRouter from "./modules/admin/a.route.js";
+import { verifyAdmin } from "./middleware/auth.js";
 
 const app = express();
 
-// Middlewares
-app.use(cors());
+// Middlewares — origins come from env so production never depends on localhost.
+const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim());
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+      else callback(new Error("Origin not allowed"));
+    },
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -35,7 +46,7 @@ app.use("/api/v1/owner/revenue", revenueRouter);
 app.use("/api/v1", contentRouter);
 app.use("/api/v1/customer/favorites", favoriteRouter);
 app.use("/api/v1/customer/bookings", bookingRouter);
-app.use("/api/v1/admin", adminRouter);
+app.use("/api/v1/admin", verifyAdmin, adminRouter);
 
 // Export Express app for Vercel
 export default app;
