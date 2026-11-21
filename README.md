@@ -14,8 +14,8 @@ npm run dev              # http://localhost:5000
 
 ## Environment
 
-All secrets come from `.env` (see `.env.example`): MongoDB URL, allowed CORS
-origins, client URL and Stripe keys. Never commit real values.
+All secrets come from `.env` (see `.env.example`): MongoDB URL and allowed CORS
+origins. Never commit real values.
 
 ## Routes
 
@@ -26,7 +26,6 @@ origins, client URL and Stripe keys. Never commit real values.
 | `/api/v1/customer/*` | Customer favorites and bookings |
 | `/api/v1/admin/*` | User, equipment and rental management |
 | `/api/v1/profile` | Shared account profile |
-| `/api/v1/payments` | Stripe checkout, webhook and payment lookup |
 | `/api/v1/categories`, `/api/v1/reviews` | Public home content |
 
 Authentication and route protection are handled in the Next.js app with
@@ -36,6 +35,4 @@ intentionally not included in this project version.
 ## Production notes
 
 - Set `CORS_ORIGINS` to the deployed client URL (comma-separated if several).
-- Set `CLIENT_URL` so Stripe can redirect back after checkout.
-- Register `POST /api/v1/payments/webhook` in Stripe with `STRIPE_WEBHOOK_SECRET`.
 - Run `npm run build && npm start` to serve compiled JavaScript from `dist/`.
