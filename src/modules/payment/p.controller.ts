@@ -178,7 +178,7 @@ export const createCheckout = async (req: Request, res: Response) => {
       payment_intent_data: { metadata: { bookingId, userId } },
       metadata: { bookingId, userId },
       success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${clientUrl()}/payment?booking=${encodeURIComponent(bookingId)}`,
+      cancel_url: `${clientUrl()}/payment/cancel?booking=${encodeURIComponent(bookingId)}`,
     });
 
     // Trace every checkout attempt in the payments collection.
@@ -230,7 +230,6 @@ export const stripeWebhook = async (req: Request, res: Response) => {
       req.header("stripe-signature") ?? "",
       secret,
     );
-
     if (
       event.type === "checkout.session.completed" ||
       event.type === "checkout.session.async_payment_succeeded"
