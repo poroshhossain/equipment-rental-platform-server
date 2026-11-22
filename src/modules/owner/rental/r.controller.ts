@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { connectToMongoDB } from "../../../config/db.js";
 import { toClient } from "../../../config/serialize.js";
 
-const db = await connectToMongoDB();
+const db = connectToMongoDB();
 const rentalCollection = db.collection("rentals");
 const equipmentCollection = db.collection("equipments");
 

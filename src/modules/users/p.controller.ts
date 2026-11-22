@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { connectToMongoDB } from "../../config/db.js";
 import { idFilter } from "../../config/serialize.js";
 
-const db = await connectToMongoDB();
+const db = connectToMongoDB();
 const profiles = db.collection("userProfiles");
 const users = db.collection("user");
 
