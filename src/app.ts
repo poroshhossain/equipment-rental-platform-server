@@ -22,13 +22,26 @@ const allowedOrigins = [
   process.env.CLIENT_URL ?? "",
   ...(process.env.CORS_ORIGINS ?? "").split(",").map((origin) => origin.trim()),
 ].filter(Boolean);
+
+// Vercel gives every deployment (including previews) its own hostname, so a
+// static allowlist alone cannot cover the deployed frontend. Allow any
+// *.vercel.app origin in addition to the explicitly configured ones.
+const isVercelOrigin = (origin: string): boolean => {
+  try {
+    return new URL(origin).hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+};
+
 app.use(
   cors({
     origin: (origin, callback) => {
       if (
         !origin ||
         process.env.NODE_ENV !== "production" ||
-        allowedOrigins.includes(origin)
+        allowedOrigins.includes(origin) ||
+        isVercelOrigin(origin)
       ) {
         callback(null, true);
       } else {
