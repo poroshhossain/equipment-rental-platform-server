@@ -3,7 +3,7 @@ import { ObjectId } from "mongodb";
 import { connectToMongoDB } from "../../../config/db.js";
 import { toClient } from "../../../config/serialize.js";
 
-const db = await connectToMongoDB();
+const db = connectToMongoDB();
 const favorites = db.collection("favorites");
 const equipment = db.collection("equipments");
 

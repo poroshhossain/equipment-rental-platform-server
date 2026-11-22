@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { connectToMongoDB } from "../../../config/db.js";
 
-const db = await connectToMongoDB();
+const db = connectToMongoDB();
 const rentalCollection = db.collection("rentals");
 
 /** Paid bookings grouped into the last six calendar months. */

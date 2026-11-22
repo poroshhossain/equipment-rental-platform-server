@@ -6,10 +6,11 @@ import { connectToMongoDB } from "../../config/db.js";
 import { idFilter } from "../../config/serialize.js";
 import { stripeClient } from "../../config/stripe.js";
 
-const db = await connectToMongoDB();
+const db = connectToMongoDB();
 const bookings = db.collection("bookings");
 const rentals = db.collection("rentals");
 const payments = db.collection("payments");
+const equipments = db.collection("equipments");
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -90,7 +91,10 @@ async function settlePaidSession(session: Stripe.Checkout.Session) {
         stripeSessionId: session.id,
         stripePaymentIntentId: paymentIntent,
         bookingId,
-        amount: (session.amount_total ?? 0) / 100 || Number(booking.totalAmount),
+        amount:
+          session.amount_total != null
+            ? session.amount_total / 100
+            : Number(booking.totalAmount),
         currency: session.currency ?? "usd",
         paymentStatus: session.payment_status,
         status: "paid",
@@ -104,6 +108,90 @@ async function settlePaidSession(session: Stripe.Checkout.Session) {
   );
 
   return payments.findOne({ stripeSessionId: session.id });
+}
+
+/**
+ * Releases the units reserved when the booking was created. Used when a
+ * Checkout session expires or its async payment fails, so stock is never lost.
+ * The `inventoryRestored` flag makes repeated webhook deliveries harmless.
+ */
+async function releaseInventoryForSession(
+  session: Stripe.Checkout.Session,
+  status: "expired" | "failed",
+) {
+  const bookingId =
+    text(session.metadata?.bookingId) || text(session.client_reference_id);
+  if (!bookingId) return;
+
+  const booking = await bookings.findOne(idFilter(bookingId));
+  if (!booking || text(booking.paymentStatus) === "paid") return;
+
+  const now = new Date().toISOString();
+  const quantity = Number(booking.quantity ?? 0);
+  const equipmentId = text(booking.equipmentId);
+
+  // Atomically claim this session. A missing document is inserted so the
+  // cancellation is still traceable; an already-restored one is left alone.
+  const previous = await payments.findOneAndUpdate(
+    { stripeSessionId: session.id, inventoryRestored: { $ne: true } },
+    {
+      $set: {
+        bookingId,
+        stripeSessionId: session.id,
+        status,
+        inventoryRestored: true,
+        amount: Number(booking.totalAmount ?? 0),
+        currency: "usd",
+        customerEmail: text(booking.customer?.email),
+        updatedAt: now,
+      },
+      $setOnInsert: { createdAt: now },
+    },
+    { returnDocument: "before" },
+  );
+
+  if (!previous) {
+    const existing = await payments.findOne({ stripeSessionId: session.id });
+    if (existing) return; // already restored by another delivery
+    await payments.insertOne({
+      bookingId,
+      stripeSessionId: session.id,
+      status,
+      inventoryRestored: true,
+      amount: Number(booking.totalAmount ?? 0),
+      currency: "usd",
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  if (equipmentId && Number.isFinite(quantity) && quantity > 0) {
+    await equipments.updateOne(idFilter(equipmentId), {
+      $inc: { availableQuantity: quantity },
+    });
+  }
+
+  await bookings.updateOne(
+    { ...idFilter(bookingId), paymentStatus: "pending" },
+    {
+      $set: {
+        paymentStatus: status,
+        bookingStatus: "cancelled",
+        updatedAt: now,
+      },
+    },
+  );
+
+  await rentals.updateOne(
+    { bookingId, paymentStatus: "pending" },
+    {
+      $set: {
+        paymentStatus: status,
+        bookingStatus: "cancelled",
+        updatedAt: now,
+      },
+    },
+  );
 }
 
 /**
@@ -154,7 +242,8 @@ export const createCheckout = async (req: Request, res: Response) => {
       return;
     }
 
-    const userId = text(req.body?.userId) || text(booking.userId);
+    // Never trust a client-supplied user id for the payment's metadata.
+    const userId = text(booking.userId);
 
     const session = await stripeClient.checkout.sessions.create({
       mode: "payment",
@@ -179,12 +268,14 @@ export const createCheckout = async (req: Request, res: Response) => {
       metadata: { bookingId, userId },
       success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${clientUrl()}/payment/cancel?booking=${encodeURIComponent(bookingId)}`,
-    });
+      // Retrying the same checkout returns the same session instead of
+      // creating duplicates that could settle twice.
+    }, { idempotencyKey: `checkout-${bookingId}` });
 
     // Trace every checkout attempt in the payments collection.
     const now = new Date().toISOString();
     await payments.updateOne(
-      { bookingId },
+      { stripeSessionId: session.id },
       {
         $set: {
           bookingId,
@@ -217,9 +308,11 @@ export const createCheckout = async (req: Request, res: Response) => {
 export const stripeWebhook = async (req: Request, res: Response) => {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!stripeClient || !secret) {
-    res.status(200).json({
-      received: true,
-      message: "Stripe webhook is not configured.",
+    // 503 makes Stripe retry and surfaces the misconfiguration in the logs.
+    // A 200 would silently drop every payment event.
+    res.status(503).json({
+      received: false,
+      message: "Stripe webhook is not configured on the server.",
     });
     return;
   }
@@ -236,15 +329,9 @@ export const stripeWebhook = async (req: Request, res: Response) => {
     ) {
       await settlePaidSession(event.data.object);
     } else if (event.type === "checkout.session.expired") {
-      await payments.updateOne(
-        { stripeSessionId: event.data.object.id },
-        { $set: { status: "expired", updatedAt: new Date().toISOString() } },
-      );
+      await releaseInventoryForSession(event.data.object, "expired");
     } else if (event.type === "checkout.session.async_payment_failed") {
-      await payments.updateOne(
-        { stripeSessionId: event.data.object.id },
-        { $set: { status: "failed", updatedAt: new Date().toISOString() } },
-      );
+      await releaseInventoryForSession(event.data.object, "failed");
     }
 
     res.status(200).json({ received: true });
@@ -264,6 +351,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
 export const verifyCheckout = async (req: Request, res: Response) => {
   try {
     const sessionId = text(req.body?.sessionId);
+    const requestedBookingId = text(req.body?.bookingId);
     if (!sessionId) {
       res.status(400).json({
         success: false,
@@ -280,6 +368,21 @@ export const verifyCheckout = async (req: Request, res: Response) => {
     }
 
     const session = await stripeClient.checkout.sessions.retrieve(sessionId);
+
+    const sessionBookingId =
+      text(session.metadata?.bookingId) || text(session.client_reference_id);
+    if (
+      requestedBookingId &&
+      sessionBookingId &&
+      requestedBookingId !== sessionBookingId
+    ) {
+      res.status(400).json({
+        success: false,
+        message: "This Checkout session belongs to a different booking.",
+      });
+      return;
+    }
+
     if (session.payment_status !== "paid" || session.status !== "complete") {
       res.status(200).json({
         success: true,
@@ -289,9 +392,17 @@ export const verifyCheckout = async (req: Request, res: Response) => {
     }
 
     const payment = await settlePaidSession(session);
+    if (!payment) {
+      res.status(404).json({
+        success: false,
+        message: "The booking for this payment no longer exists.",
+      });
+      return;
+    }
+
     res.status(200).json({
       success: true,
-      data: { paid: true, payment: payment ? paymentView(payment) : null },
+      data: { paid: true, payment: paymentView(payment) },
     });
   } catch (error) {
     failed(res, "Could not verify payment", error);

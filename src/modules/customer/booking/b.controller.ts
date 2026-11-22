@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { connectToMongoDB } from "../../../config/db.js";
 import { idFilter, toClient } from "../../../config/serialize.js";
 
-const db = await connectToMongoDB();
+const db = connectToMongoDB();
 const bookings = db.collection("bookings");
 const rentals = db.collection("rentals");
 const equipment = db.collection("equipments");
@@ -54,14 +54,6 @@ export const createBooking = async (req: Request, res: Response) => {
       res.status(404).json({ success: false, message: "Equipment not found" });
       return;
     }
-    if (amount > item.availableQuantity) {
-      res.status(409).json({
-        success: false,
-        message: `Only ${item.availableQuantity} unit(s) available.`,
-      });
-      return;
-    }
-
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (
@@ -70,6 +62,20 @@ export const createBooking = async (req: Request, res: Response) => {
       end <= start
     ) {
       res.status(400).json({ success: false, message: "Invalid rental dates." });
+      return;
+    }
+
+    // Reserve stock atomically. A plain read-then-decrement lets two concurrent
+    // bookings both pass the availability check and oversell the same unit.
+    const reserved = await equipment.updateOne(
+      { ...idFilter(text(equipmentId)), availableQuantity: { $gte: amount } },
+      { $inc: { availableQuantity: -amount } },
+    );
+    if (reserved.matchedCount === 0) {
+      res.status(409).json({
+        success: false,
+        message: `Only ${Number(item.availableQuantity ?? 0)} unit(s) available.`,
+      });
       return;
     }
 
@@ -125,11 +131,6 @@ export const createBooking = async (req: Request, res: Response) => {
       createdAt: now,
       bookingId: String(result.insertedId),
     });
-
-    await equipment.updateOne(
-      { _id: item._id },
-      { $inc: { availableQuantity: -amount } },
-    );
 
     res.status(201).json({
       success: true,

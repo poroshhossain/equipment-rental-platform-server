@@ -19,8 +19,7 @@ app.use("/api/v1/payment/webhook", express.raw({ type: "application/json" }));
 
 // Local development should work on any host/port without CORS errors.
 const allowedOrigins = [
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
+  process.env.CLIENT_URL ?? "",
   ...(process.env.CORS_ORIGINS ?? "").split(",").map((origin) => origin.trim()),
 ].filter(Boolean);
 app.use(
@@ -56,6 +55,25 @@ app.use("/api/v1/customer/favorites", favoriteRouter);
 app.use("/api/v1/customer/bookings", bookingRouter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/payment", paymentRouter);
+
+app.use((_req, res) => {
+  res.status(404).json({ success: false, message: "Route not found." });
+});
+
+// Never let Express's default HTML error handler run inside a serverless
+// function: it leaks stack traces and can leave the invocation in a bad state.
+app.use(
+  (
+    err: Error,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    console.error(err);
+    if (res.headersSent) return;
+    res.status(500).json({ success: false, message: "Internal server error." });
+  },
+);
 
 // Export Express app for Vercel
 export default app;

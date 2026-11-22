@@ -1,31 +1,22 @@
+import { MongoClient, type Db } from "mongodb";
 
-import { MongoClient, Db } from "mongodb";
-
-const uri = process.env.DB_URL as string;
+/**
+ * Vercel evaluates modules during the build, when environment variables are
+ * not guaranteed to be present. Creating a MongoClient is cheap and does NOT
+ * open a socket — the driver connects lazily on the first query — so this
+ * module must never throw or await at import time.
+ */
+const uri = process.env.DB_URL;
 
 if (!uri) {
-  throw new Error("DB_URL is not defined in environment variables");
+  console.warn(
+    "DB_URL is not defined. Database requests will fail until it is configured.",
+  );
 }
 
-const client = new MongoClient(uri);
+const client = new MongoClient(uri ?? "mongodb://127.0.0.1:27017");
 
-let db: Db;
-
-export async function connectToMongoDB(): Promise<Db> {
-  try {
-    if (db) {
-      return db;
-    }
-
-    await client.connect();
-
-    db = client.db("equipment-rental-platform");
-
-    console.log("MongoDB connected successfully!");
-
-    return db;
-  } catch (error) {
-    console.error("MongoDB connection failed:", error);
-    throw error;
-  }
+/** Shared database handle. The connection itself is opened on first use. */
+export function connectToMongoDB(): Db {
+  return client.db("equipment-rental-platform");
 }
